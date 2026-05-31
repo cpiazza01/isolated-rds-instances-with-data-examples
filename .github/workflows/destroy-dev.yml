@@ -119,4 +119,11 @@ jobs:
 
       - name: Terragrunt destroy
         working-directory: module/${{ matrix.deployment.module }}/environments/dev/${{ matrix.deployment.region }}
+        env:
+          TF_LOG: ERROR
+          TF_LOG_PATH: /tmp/tf.log
         run: terragrunt destroy -auto-approve --terragrunt-non-interactive
+
+      - name: Show Terraform error log
+        if: failure()
+        run: cat /tmp/tf.log 2>/dev/null || echo "No Terraform log written"

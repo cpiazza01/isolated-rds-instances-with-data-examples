@@ -115,4 +115,11 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ inputs.module }}/environments/prod/${{ inputs.region }}
+        env:
+          TF_LOG: ERROR
+          TF_LOG_PATH: /tmp/tf.log
         run: terragrunt apply -auto-approve --terragrunt-non-interactive
+
+      - name: Show Terraform error log
+        if: failure()
+        run: cat /tmp/tf.log 2>/dev/null || echo "No Terraform log written"

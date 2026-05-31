@@ -235,7 +235,14 @@ jobs:
 
       - name: Terragrunt plan
         working-directory: module/${{ matrix.deployment.module }}/environments/${{ needs.detect-changes.outputs.target_env }}/${{ matrix.deployment.region }}
+        env:
+          TF_LOG: ERROR
+          TF_LOG_PATH: /tmp/tf.log
         run: terragrunt plan --terragrunt-non-interactive
+
+      - name: Show Terraform error log
+        if: failure()
+        run: cat /tmp/tf.log 2>/dev/null || echo "No Terraform log written"
 
   # ---------------------------------------------------------------------------
   # Deploy → dev — push to any non-main branch, after tests pass.
@@ -286,7 +293,14 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ matrix.deployment.module }}/environments/dev/${{ matrix.deployment.region }}
+        env:
+          TF_LOG: ERROR
+          TF_LOG_PATH: /tmp/tf.log
         run: terragrunt apply -auto-approve --terragrunt-non-interactive
+
+      - name: Show Terraform error log
+        if: failure()
+        run: cat /tmp/tf.log 2>/dev/null || echo "No Terraform log written"
 
   # ---------------------------------------------------------------------------
   # Deploy → test — push to main only, after tests pass.
@@ -337,4 +351,11 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ matrix.deployment.module }}/environments/test/${{ matrix.deployment.region }}
+        env:
+          TF_LOG: ERROR
+          TF_LOG_PATH: /tmp/tf.log
         run: terragrunt apply -auto-approve --terragrunt-non-interactive
+
+      - name: Show Terraform error log
+        if: failure()
+        run: cat /tmp/tf.log 2>/dev/null || echo "No Terraform log written"
