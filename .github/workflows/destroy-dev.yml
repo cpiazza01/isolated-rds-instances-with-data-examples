@@ -6,12 +6,12 @@ name: Scheduled Dev Destroy
 #
 # Also triggerable manually via workflow_dispatch for on-demand teardown.
 #
-# Required GitHub Actions secrets:
-#   AWS_ROLE_ARN         — IAM role ARN to assume via OIDC
+# Required GitHub Actions variables (Settings → Secrets and variables → Variables):
+#   AWS_ROLE_ARN         — IAM role ARN to assume via OIDC (not a secret — ARNs are
+#                          identifiers, not credentials; OIDC conditions enforce access)
 #                          Set in the "dev" GitHub Environment (Settings → Environments)
-#                          (e.g. arn:aws:iam::123456789012:role/gha-terraform-dev)
 #
-# No GitHub Actions variables required — state bucket names are in each module's region.hcl.
+# No GitHub Actions secrets required — state bucket names are in each module's region.hcl.
 
 on:
   schedule:
@@ -114,7 +114,7 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
           aws-region: ${{ matrix.deployment.region }}
 
       - name: Terragrunt destroy

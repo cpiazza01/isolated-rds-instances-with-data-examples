@@ -70,19 +70,20 @@ No AWS credentials need to be set in environment variables if your AWS CLI profi
 
 ## After apply
 
-Copy the role ARNs from the output and set them as GitHub secrets:
+Copy the role ARNs from the output and set them as GitHub **variables** (not secrets — role
+ARNs are identifiers, not credentials; the OIDC trust conditions enforce who can assume them):
 
 ```
-Settings → Secrets and variables → Actions → Repository secrets
+Settings → Secrets and variables → Actions → Variables → New repository variable
   AWS_ROLE_ARN = <dev role ARN>   ← used by plan jobs on PRs
 
-Settings → Environments → dev → Environment secrets
+Settings → Environments → dev → Environment variables
   AWS_ROLE_ARN = <dev role ARN>
 
-Settings → Environments → test → Environment secrets
+Settings → Environments → test → Environment variables
   AWS_ROLE_ARN = <test role ARN>
 
-Settings → Environments → prod → Environment secrets
+Settings → Environments → prod → Environment variables
   AWS_ROLE_ARN = <prod role ARN>
 ```
 
