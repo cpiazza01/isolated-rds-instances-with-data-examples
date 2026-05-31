@@ -4,7 +4,7 @@ name: CI
 #   PR to main          → test + plan test  (previews exactly what merging will deploy)
 #   Push to feature     → test → deploy dev  (apply runs its own plan internally)
 #   Push to main        → test → deploy test  (apply runs its own plan internally)
-#   Prod                → deploy.yml (manual dispatch, main branch only)
+#   Prod                → deploy-prod.yml (manual dispatch, main branch only)
 #
 # Required GitHub Actions variables (Settings → Secrets and variables → Variables):
 #   AWS_ROLE_ARN         — IAM role ARN to assume via OIDC (not a secret — ARNs are
@@ -66,8 +66,10 @@ jobs:
           #   opened don't appear as "changed" in the PR's diff.
           #
           # push (existing branch): github.event.before is the SHA that HEAD pointed
-          #   to before the push started. Diffing against it captures every commit in
-          #   the push, not just the last one (HEAD~1 would silently skip earlier ones).
+          #   to before the push started. Two-dot diff captures every commit in the
+          #   push, not just the last one (HEAD~1 would silently skip earlier ones).
+          #   Two dots (not three) is correct here: three-dot finds the merge base,
+          #   which on a non-linear push can predate event.before and miss changes.
           #
           # push (new branch): github.event.before is all zeros — there is no "before"
           #   SHA. Fall back to listing every file in the HEAD commit tree so all
@@ -75,7 +77,7 @@ jobs:
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             changed=$(git diff --name-only "origin/${{ github.base_ref }}"...HEAD)
           elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
-            changed=$(git diff --name-only "${{ github.event.before }}"...HEAD)
+            changed=$(git diff --name-only "${{ github.event.before }}..HEAD")
           else
             changed=$(git diff-tree --no-commit-id -r --name-only HEAD)
           fi
@@ -95,6 +97,19 @@ jobs:
           # -mindepth 2 -maxdepth 2 targets exactly the <env>/<region> directories
           # beneath each module's environments/ (e.g. environments/dev/us-east-1).
           pairs=()
+
+          # root.terragrunt.hcl is the shared backend + provider config inherited by
+          # every leaf. A change to it affects all modules and all regions.
+          if echo "$changed" | grep -q "^root\.terragrunt\.hcl$"; then
+            for mod_dir in module/*/; do
+              mod=$(basename "$mod_dir")
+              [[ "$mod" == "bootstrap" ]] && continue
+              while IFS= read -r region_dir; do
+                pairs+=("$mod:$(basename "$region_dir")")
+              done < <(find "module/$mod/environments" -mindepth 2 -maxdepth 2 -type d 2>/dev/null)
+            done
+          fi
+
           for mod_dir in module/*/; do
             mod=$(basename "$mod_dir")
             [[ "$mod" == "bootstrap" ]] && continue
@@ -110,9 +125,19 @@ jobs:
             echo "deployments=[]" >> "$GITHUB_OUTPUT"
             echo "changed_modules=[]" >> "$GITHUB_OUTPUT"
           else
+            # Deduplicate pairs — find yields one entry per env (dev/us-east-1,
+            # test/us-east-1, prod/us-east-1) but the deploy jobs target a single
+            # env, so only unique module:region pairs are needed.
+            unique_pairs=()
+            for pair in "${pairs[@]}"; do
+              if [[ ! " ${unique_pairs[*]} " =~ " $pair " ]]; then
+                unique_pairs+=("$pair")
+              fi
+            done
+
             # jq -R reads each "module:region" line as a raw string; split(":") yields
             # the two fields; jq -s -c slurps all objects into a single compact array.
-            json=$(printf '%s\n' "${pairs[@]}" | \
+            json=$(printf '%s\n' "${unique_pairs[@]}" | \
               jq -R 'split(":") | {"module": .[0], "region": .[1]}' | \
               jq -s -c .)
             echo "any_changed=true" >> "$GITHUB_OUTPUT"
@@ -121,7 +146,7 @@ jobs:
             # Deduplicate module names for the test matrix.
             # ${pair%%:*} strips from the first ":" to the end, leaving the module name.
             modules=()
-            for pair in "${pairs[@]}"; do
+            for pair in "${unique_pairs[@]}"; do
               mod="${pair%%:*}"
               if [[ ! " ${modules[*]} " =~ " $mod " ]]; then
                 modules+=("$mod")
@@ -142,6 +167,7 @@ jobs:
     if: needs.detect-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         module: ${{ fromJson(needs.detect-changes.outputs.changed_modules) }}
     steps:
@@ -177,6 +203,7 @@ jobs:
     if: github.event_name == 'pull_request' && needs.detect-changes.outputs.any_changed == 'true'
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
     steps:
@@ -223,6 +250,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: dev
     strategy:
+      fail-fast: false
       matrix:
         deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
     steps:
@@ -273,6 +301,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: test
     strategy:
+      fail-fast: false
       matrix:
         deployment: ${{ fromJson(needs.detect-changes.outputs.deployments) }}
     steps:

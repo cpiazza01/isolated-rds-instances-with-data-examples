@@ -5,7 +5,9 @@ include "root" {
 locals {
   common = read_terragrunt_config(find_in_parent_folders("common.hcl"))
   env    = read_terragrunt_config(find_in_parent_folders("env.hcl"))
-  region = read_terragrunt_config(find_in_parent_folders("region.hcl"))
+  # region.hcl is in the same directory as this file, not a parent, so we
+  # reference it directly — find_in_parent_folders only searches parent dirs.
+  region = read_terragrunt_config("${get_terragrunt_dir()}/region.hcl")
 
   # Derives the environment name (dev/test/prod) from the directory path.
   environment = basename(dirname(get_terragrunt_dir()))

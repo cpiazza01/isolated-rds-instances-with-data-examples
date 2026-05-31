@@ -45,7 +45,8 @@ The RDS instance is never publicly accessible. Connect locally via the SSH tunne
 │   └── mysql/                   # MySQL module + environments
 └── .github/workflows/
     ├── ci.yml                   # Test → plan → deploy dev/test on push/PR
-    ├── deploy.yml               # Manual prod deployment
+    ├── deploy-prod.yml          # Manual prod deployment
+    ├── deploy-lower.yml         # Manual plan/apply/destroy for any env
     └── destroy-dev.yml          # Nightly dev teardown (4am UTC)
 ```
 
@@ -64,12 +65,12 @@ Bootstrap creates the S3 state buckets and GitHub Actions IAM roles. It must run
 
 See [module/bootstrap/README.md](module/bootstrap/README.md) for the full setup walkthrough.
 
-### 2. Set GitHub secrets
+### 2. Set GitHub Actions variables
 
-After bootstrap, copy the role ARNs from its output and set them as GitHub secrets:
+After bootstrap, copy the role ARNs from its output and set them as GitHub Actions **variables** (Settings → Secrets and variables → **Variables** tab — not Secrets):
 
-| Secret | Where | Value |
-|--------|-------|-------|
+| Variable | Where | Value |
+|----------|-------|-------|
 | `AWS_ROLE_ARN` | Repo-level | dev role ARN (used by plan jobs on PRs) |
 | `AWS_ROLE_ARN` | `dev` Environment | dev role ARN |
 | `AWS_ROLE_ARN` | `test` Environment | test role ARN |
@@ -86,9 +87,10 @@ After bootstrap, copy the role ARNs from its output and set them as GitHub secre
 | Event | Jobs |
 |-------|------|
 | Push to any branch | Test → deploy to `dev` |
-| Pull request to `main` | Test → plan against `dev` |
+| Pull request to `main` | Test → plan against `test` |
 | Push to `main` | Test → deploy to `test` |
-| Manual dispatch (`deploy.yml`) | Test → deploy to `prod` (requires `prod` environment approval) |
+| Manual dispatch (`deploy-prod.yml`) | Test → deploy to `prod` (requires `prod` environment approval) |
+| Manual dispatch (`deploy-lower.yml`) | plan/apply/destroy for dev or test (branch-derived) |
 | Nightly schedule (`destroy-dev.yml`) | Destroy all `dev` deployments at 4am UTC |
 
 Only modules with changed files are included in each run. New modules are picked up automatically by the destroy workflow without any workflow edits.

@@ -49,6 +49,9 @@ root.terragrunt.hcl          # S3 backend + AWS provider, inherited by all leaf 
 ```
 
 `find_in_parent_folders()` walks up from the leaf `terragrunt.hcl` to find each config file.
+`region.hcl` is the exception — it lives in the *same* directory as the leaf `terragrunt.hcl`
+(not a parent), so it is referenced directly via `get_terragrunt_dir()` / `get_original_terragrunt_dir()`
+rather than `find_in_parent_folders`.
 
 ## State locking
 
@@ -58,12 +61,13 @@ The `tf_lock_table` local in each `region.hcl` points to the correct table for t
 
 ## CI/CD overview
 
-Three workflows:
+Four workflows:
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
 | `ci.yml` | Push / PR | Detect changes → test → plan (PRs only) → deploy dev or test |
-| `deploy.yml` | Manual dispatch | Test → deploy prod |
+| `deploy-prod.yml` | Manual dispatch | Test → deploy prod |
+| `deploy-lower.yml` | Manual dispatch | plan/apply/destroy dev or test (branch-derived) |
 | `destroy-dev.yml` | Nightly (4am UTC) + manual | Destroy all dev deployments |
 
 Key CI decisions made during development:

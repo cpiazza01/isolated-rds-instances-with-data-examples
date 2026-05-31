@@ -1,0 +1,176 @@
+name: Deploy Lower
+
+# Run plan, apply, or destroy for dev or test.
+# Target env is derived from the branch: main → test, any other branch → dev.
+# For prod use deploy-prod.yml.
+#
+# Required GitHub Actions variables (Settings → Secrets and variables → Variables):
+#   AWS_ROLE_ARN  — set at repo level AND in each GitHub Environment
+#                   (per-environment role ARNs from bootstrap outputs)
+#
+# No GitHub Actions secrets required.
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "Terragrunt action"
+        required: true
+        type: choice
+        options:
+          - plan
+          - apply
+          - destroy
+      module:
+        description: "Module"
+        required: true
+        type: choice
+        options:
+          - postgres
+          - mysql
+      region:
+        description: "AWS region — 'all' targets every region configured for the env"
+        required: true
+        type: choice
+        options:
+          - all
+          - us-east-1
+
+# Prevent concurrent operations against the same branch/module/region.
+# cancel-in-progress: false so an in-flight apply or destroy is never interrupted.
+concurrency:
+  group: deploy-lower-${{ github.ref }}-${{ inputs.module }}-${{ inputs.region }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # required to exchange the GitHub OIDC token for AWS credentials
+  contents: read
+
+env:
+  TERRAGRUNT_VERSION: "0.67.0"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Discover — resolve target env and the list of module/region pairs.
+  # main → test; any other branch → dev.
+  # When region is "all", finds every configured region directory for the env.
+  # ---------------------------------------------------------------------------
+  discover:
+    name: Discover deployments
+    runs-on: ubuntu-latest
+    outputs:
+      target_env: ${{ steps.discover.outputs.target_env }}
+      deployments: ${{ steps.discover.outputs.deployments }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build deployment matrix
+        id: discover
+        run: |
+          if [ "${{ github.ref }}" = "refs/heads/main" ]; then
+            target_env="test"
+          else
+            target_env="dev"
+          fi
+          echo "target_env=${target_env}" >> "$GITHUB_OUTPUT"
+
+          if [ "${{ inputs.region }}" = "all" ]; then
+            deployments=()
+            while IFS= read -r region_dir; do
+              region=$(basename "$region_dir")
+              deployments+=("{\"module\":\"${{ inputs.module }}\",\"region\":\"$region\"}")
+            done < <(find "module/${{ inputs.module }}/environments/${target_env}" \
+                       -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
+          else
+            deployments=("{\"module\":\"${{ inputs.module }}\",\"region\":\"${{ inputs.region }}\"}")
+          fi
+
+          if [ ${#deployments[@]} -eq 0 ]; then
+            echo "No deployment directories found for ${{ inputs.module }}/${target_env}" >&2
+            exit 1
+          fi
+          json="[$(IFS=,; echo "${deployments[*]}")]"
+          echo "deployments=$json" >> "$GITHUB_OUTPUT"
+
+  # ---------------------------------------------------------------------------
+  # Test — plan-only tests using mock providers. No AWS credentials required.
+  # Runs before any apply or destroy to catch config errors early.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (${{ inputs.module }})
+    needs: [discover]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+
+      - name: Terraform fmt check
+        working-directory: module/${{ inputs.module }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: module/${{ inputs.module }}
+        run: terraform init
+
+      - name: Terraform validate
+        working-directory: module/${{ inputs.module }}
+        run: terraform validate
+
+      - name: Terraform test
+        working-directory: module/${{ inputs.module }}
+        run: terraform test
+
+  # ---------------------------------------------------------------------------
+  # Ops — run the selected Terragrunt action for each module/region pair.
+  # ---------------------------------------------------------------------------
+  ops:
+    name: "${{ inputs.action }} → ${{ needs.discover.outputs.target_env }} (${{ matrix.deployment.module }}/${{ matrix.deployment.region }})"
+    needs: [discover, test]
+    runs-on: ubuntu-latest
+    environment: ${{ needs.discover.outputs.target_env }}
+    strategy:
+      fail-fast: false
+      matrix:
+        deployment: ${{ fromJson(needs.discover.outputs.deployments) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: Set up Terragrunt
+        run: |
+          # Download to /tmp so the binary and SHA256SUMS file share a directory —
+          # sha256sum --check resolves filenames relative to the current directory.
+          cd /tmp
+          curl -sL -o terragrunt_linux_amd64 \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
+          # Verify the binary matches the published checksum before placing it on PATH.
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
+            | grep "terragrunt_linux_amd64" | sha256sum --check
+          # install -m 0755 copies the file and sets the execute bit in one step.
+          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.deployment.region }}
+
+      - name: Terragrunt ${{ inputs.action }}
+        working-directory: module/${{ matrix.deployment.module }}/environments/${{ needs.discover.outputs.target_env }}/${{ matrix.deployment.region }}
+        run: |
+          case "${{ inputs.action }}" in
+            plan)    terragrunt plan --terragrunt-non-interactive ;;
+            apply)   terragrunt apply   -auto-approve --terragrunt-non-interactive ;;
+            destroy) terragrunt destroy -auto-approve --terragrunt-non-interactive ;;
+          esac

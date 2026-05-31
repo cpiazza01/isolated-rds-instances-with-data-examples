@@ -3,10 +3,12 @@
 # AWS provider generation so neither needs to be repeated per-deployment.
 #
 # The S3 state bucket, DynamoDB lock table, and AWS region are read from the
-# nearest region.hcl up the directory tree — no environment variables required.
+# region.hcl that sits alongside the leaf terragrunt.hcl. find_in_parent_folders
+# only searches parent directories (never the current directory), so we use
+# get_original_terragrunt_dir() to reference the leaf's own directory directly.
 
 locals {
-  region_config   = read_terragrunt_config(find_in_parent_folders("region.hcl"))
+  region_config   = read_terragrunt_config("${get_original_terragrunt_dir()}/region.hcl")
   aws_region      = local.region_config.locals.aws_region
   tf_state_bucket = local.region_config.locals.tf_state_bucket
   tf_lock_table   = local.region_config.locals.tf_lock_table
