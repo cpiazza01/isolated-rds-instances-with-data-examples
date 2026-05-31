@@ -30,6 +30,12 @@ remote_state {
     key            = "isolated-rds-instances-with-data-examples/${path_relative_to_include()}/terraform.tfstate"
     region         = local.aws_region
     dynamodb_table = local.tf_lock_table
+
+    # Bootstrap owns all bucket configuration (versioning, encryption, public
+    # access blocking, root denial, TLS enforcement). This stops Terragrunt
+    # from attempting any bucket updates at init time, which would require
+    # s3:PutBucketPolicy and other permissions the GitHub Actions role doesn't need.
+    disable_bucket_update = true
   }
   generate = {
     path      = "backend.tf"

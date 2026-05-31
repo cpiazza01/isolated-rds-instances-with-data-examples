@@ -70,6 +70,35 @@ resource "aws_s3_bucket_public_access_block" "state" {
   restrict_public_buckets = true
 }
 
+# Enforces HTTPS-only access on state buckets. The public access block must
+# exist first so block_public_policy is in place before any policy is attached.
+resource "aws_s3_bucket_policy" "state_enforce_tls" {
+  for_each   = aws_s3_bucket.state
+  bucket     = each.value.id
+  depends_on = [aws_s3_bucket_public_access_block.state]
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid       = "DenyNonTLS"
+        Effect    = "Deny"
+        Principal = "*"
+        Action    = "s3:*"
+        Resource = [
+          each.value.arn,
+          "${each.value.arn}/*"
+        ]
+        Condition = {
+          Bool = {
+            "aws:SecureTransport" = "false"
+          }
+        }
+      }
+    ]
+  })
+}
+
 # ── GitHub OIDC Provider ──────────────────────────────────────────────────────
 # The OIDC provider is an account-level resource created once manually.
 # Create it before running bootstrap:
@@ -267,7 +296,8 @@ resource "aws_iam_role_policy" "github_actions_custom" {
           "s3:DeleteObject",
           "s3:ListBucket",
           "s3:GetBucketVersioning",
-          "s3:GetEncryptionConfiguration"
+          "s3:GetEncryptionConfiguration",
+          "s3:GetBucketPublicAccessBlock"
         ]
         Resource = [
           "arn:aws:s3:::${var.state_bucket_prefix}-*",
