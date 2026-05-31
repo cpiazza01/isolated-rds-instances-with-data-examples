@@ -115,4 +115,4 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ inputs.module }}/environments/prod/${{ inputs.region }}
-        run: terragrunt apply -auto-approve --terragrunt-non-interactive
+        run: terragrunt apply -auto-approve --terragrunt-non-interactive 2>&1

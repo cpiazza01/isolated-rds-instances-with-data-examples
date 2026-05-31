@@ -235,7 +235,7 @@ jobs:
 
       - name: Terragrunt plan
         working-directory: module/${{ matrix.deployment.module }}/environments/${{ needs.detect-changes.outputs.target_env }}/${{ matrix.deployment.region }}
-        run: terragrunt plan --terragrunt-non-interactive
+        run: terragrunt plan --terragrunt-non-interactive 2>&1
 
   # ---------------------------------------------------------------------------
   # Deploy → dev — push to any non-main branch, after tests pass.
@@ -286,7 +286,7 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ matrix.deployment.module }}/environments/dev/${{ matrix.deployment.region }}
-        run: terragrunt apply -auto-approve --terragrunt-non-interactive
+        run: terragrunt apply -auto-approve --terragrunt-non-interactive 2>&1
 
   # ---------------------------------------------------------------------------
   # Deploy → test — push to main only, after tests pass.
@@ -337,4 +337,4 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ matrix.deployment.module }}/environments/test/${{ matrix.deployment.region }}
-        run: terragrunt apply -auto-approve --terragrunt-non-interactive
+        run: terragrunt apply -auto-approve --terragrunt-non-interactive 2>&1

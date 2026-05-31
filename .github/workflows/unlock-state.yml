@@ -90,4 +90,4 @@ jobs:
 
       - name: Terragrunt force-unlock
         working-directory: module/${{ inputs.module }}/environments/${{ inputs.environment }}/${{ inputs.region }}
-        run: terragrunt force-unlock -force "${{ inputs.lock_id }}" --terragrunt-non-interactive
+        run: terragrunt force-unlock -force "${{ inputs.lock_id }}" --terragrunt-non-interactive 2>&1

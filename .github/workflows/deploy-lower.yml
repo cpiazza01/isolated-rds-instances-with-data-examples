@@ -170,7 +170,7 @@ jobs:
         working-directory: module/${{ matrix.deployment.module }}/environments/${{ needs.discover.outputs.target_env }}/${{ matrix.deployment.region }}
         run: |
           case "${{ inputs.action }}" in
-            plan)    terragrunt plan --terragrunt-non-interactive ;;
-            apply)   terragrunt apply   -auto-approve --terragrunt-non-interactive ;;
-            destroy) terragrunt destroy -auto-approve --terragrunt-non-interactive ;;
+            plan)    terragrunt plan --terragrunt-non-interactive 2>&1 ;;
+            apply)   terragrunt apply   -auto-approve --terragrunt-non-interactive 2>&1 ;;
+            destroy) terragrunt destroy -auto-approve --terragrunt-non-interactive 2>&1 ;;
           esac
