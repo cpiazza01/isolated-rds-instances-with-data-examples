@@ -57,6 +57,14 @@ variable "db_storage_gb" {
 
 # ── Seeder Lambda ─────────────────────────────────────────────────────────────
 
+# ARN of the IAM permission boundary policy created by bootstrap. The GitHub
+# Actions IAMCreateRoleWithBoundary condition requires this to be attached to
+# any role the seeder Lambda execution role creates.
+variable "lambda_permission_boundary_arn" {
+  type        = string
+  description = "Permission boundary ARN (from bootstrap output lambda_boundary_arn) to attach to the seeder Lambda execution role"
+}
+
 # Number of rows inserted into the users table by the seeder Lambda after apply.
 # Lambda has a 15-minute timeout; ~500,000 rows is the practical maximum.
 variable "row_count" {

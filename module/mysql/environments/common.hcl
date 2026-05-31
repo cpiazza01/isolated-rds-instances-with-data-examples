@@ -11,4 +11,10 @@ locals {
   # Create one: aws ec2 create-key-pair --key-name my-rds-testing-key --region us-east-1 \
   #   --query KeyMaterial --output text > ~/.ssh/my-rds-testing-key.pem && chmod 400 ~/.ssh/my-rds-testing-key.pem
   bastion_ssh_key_name = "my-rds-testing-key"
+
+  # ARN of the permission boundary created by bootstrap. Required so the
+  # GitHub Actions IAMCreateRoleWithBoundary condition allows seeder Lambda
+  # role creation. Get the value from: terraform output lambda_boundary_arn
+  # (run in module/bootstrap/environments/account/global/).
+  lambda_permission_boundary_arn = "arn:aws:iam::321923606518:policy/isolated-rds-examples-lambda-boundary"
 }

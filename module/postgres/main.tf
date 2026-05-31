@@ -17,6 +17,8 @@ module "isolated_rds" {
   db_username       = var.db_username
   db_storage_gb     = var.db_storage_gb
 
+  lambda_permission_boundary_arn = var.lambda_permission_boundary_arn
+
   row_count = var.row_count
 
   skip_final_snapshot    = var.skip_final_snapshot

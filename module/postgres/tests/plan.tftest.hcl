@@ -34,6 +34,8 @@ variables {
   db_username       = "dbadmin"
   db_storage_gb     = 20
 
+  lambda_permission_boundary_arn = "arn:aws:iam::123456789012:policy/test-lambda-boundary"
+
   row_count              = 100
   skip_final_snapshot    = true
   db_deletion_protection = false
