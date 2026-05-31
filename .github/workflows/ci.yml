@@ -36,11 +36,12 @@ env:
 
 jobs:
   # ---------------------------------------------------------------------------
-  # Detect changed deployments — outputs:
-  #   deployments    JSON array of {module, region} pairs for plan/deploy jobs
-  #   changed_modules JSON array of unique module names for the test matrix
-  #   any_changed    boolean gate used by downstream jobs
-  #   target_env     dev (non-main) or test (main push)
+  # Detect changed modules — any file change under module/<name>/ triggers that
+  # module for all its regions. Outputs:
+  #   deployments     JSON array of {module, region} pairs for plan/deploy jobs
+  #   changed_modules JSON array of module names for the test matrix
+  #   any_changed     boolean gate used by downstream jobs
+  #   target_env      dev (feature branch / PR) or test (push/PR to main)
   # ---------------------------------------------------------------------------
   detect-changes:
     name: Detect changed deployments
@@ -89,93 +90,36 @@ jobs:
           fi
           echo "target_env=${target_env}" >> "$GITHUB_OUTPUT"
 
-          # pairs collects "module:region" strings for every deployment that needs
-          # to be planned or deployed this run.
+          # For each non-bootstrap module, check whether any file under its directory
+          # changed. If yes, queue all of its regions for deployment.
+          # -mindepth 2 -maxdepth 2 targets exactly the <env>/<region> directories
+          # beneath each module's environments/ (e.g. environments/dev/us-east-1).
           pairs=()
-
-          # add_pair deduplicates entries before appending to the array.
-          # The comparison is space-padded (" ${pairs[*]} " =~ " $key ") to prevent
-          # false positives where one key is a prefix of another (e.g. "foo" matching
-          # "foobar" without the padding).
-          add_pair() {
-            local mod="$1" region="$2" key="$1:$2"
-            if [[ ! " ${pairs[*]} " =~ " $key " ]]; then
-              pairs+=("$key")
-            fi
-          }
-
-          # IFS= prevents leading/trailing whitespace from being stripped from each
-          # filename. -r disables backslash interpretation in filenames.
-          # <<< feeds the multiline $changed string into the loop one line at a time.
-          #
-          # All find commands use -mindepth 2 -maxdepth 2 to target directories at
-          # exactly the <env>/<region> level under environments/ (e.g. dev/us-east-1).
-          while IFS= read -r file; do
-
-            # A file directly inside a region deployment directory, e.g.
-            #   module/postgres/environments/dev/us-east-1/terragrunt.hcl
-            # Captures: BASH_REMATCH[1]=module, BASH_REMATCH[2]=region.
-            # Bootstrap is excluded — it is applied manually, not via CI.
-            if [[ "$file" =~ ^module/([^/]+)/environments/[^/]+/([^/]+)/ ]]; then
-              [[ "${BASH_REMATCH[1]}" == "bootstrap" ]] && continue
-              add_pair "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
-
-            # A module source file (main.tf, variables.tf, tests/, etc.) but NOT
-            # anything under an environments/ directory — re-plan every region for
-            # the module since the shared source changed.
-            # Bootstrap is excluded: it has no CI-managed environments and is
-            # applied manually.
-            elif [[ "$file" =~ ^module/([^/]+)/ ]] && [[ ! "$file" =~ ^module/[^/]+/environments/ ]]; then
-              mod="${BASH_REMATCH[1]}"
-              [[ "$mod" == "bootstrap" ]] && continue
+          for mod_dir in module/*/; do
+            mod=$(basename "$mod_dir")
+            [[ "$mod" == "bootstrap" ]] && continue
+            if echo "$changed" | grep -q "^module/$mod/"; then
               while IFS= read -r region_dir; do
-                add_pair "$mod" "$(basename "$region_dir")"
+                pairs+=("$mod:$(basename "$region_dir")")
               done < <(find "module/$mod/environments" -mindepth 2 -maxdepth 2 -type d 2>/dev/null)
-
-            # An environment config file that sits above the region level, e.g.
-            # common.hcl (under environments/) or env.hcl (under environments/<env>/).
-            # These affect all regions for the module, so re-plan all of them.
-            # Bootstrap is excluded for the same reason as above.
-            elif [[ "$file" =~ ^module/([^/]+)/environments/ ]]; then
-              mod="${BASH_REMATCH[1]}"
-              [[ "$mod" == "bootstrap" ]] && continue
-              while IFS= read -r region_dir; do
-                add_pair "$mod" "$(basename "$region_dir")"
-              done < <(find "module/$mod/environments" -mindepth 2 -maxdepth 2 -type d 2>/dev/null)
-
-            # root.terragrunt.hcl configures the shared remote state backend and
-            # provider for every module, so any change to it affects every non-bootstrap
-            # deployment. Iterate over all module directories and add all their regions.
-            elif [[ "$file" == "root.terragrunt.hcl" ]]; then
-              for mod_dir in module/*/; do
-                mod=$(basename "$mod_dir")
-                [[ "$mod" == "bootstrap" ]] && continue
-                while IFS= read -r region_dir; do
-                  add_pair "$mod" "$(basename "$region_dir")"
-                done < <(find "module/$mod/environments" -mindepth 2 -maxdepth 2 -type d 2>/dev/null)
-              done
             fi
-          done <<< "$changed"
+          done
 
           if [ ${#pairs[@]} -eq 0 ]; then
             echo "any_changed=false" >> "$GITHUB_OUTPUT"
             echo "deployments=[]" >> "$GITHUB_OUTPUT"
             echo "changed_modules=[]" >> "$GITHUB_OUTPUT"
           else
-            # Convert the "module:region" pairs to a compact JSON array that
-            # downstream matrix jobs consume via fromJson().
-            # jq -R reads each line as a raw string; split(":") yields [module, region];
-            # the object constructor builds {"module":"...","region":"..."};
-            # jq -s -c slurps the stream of objects into a single compact array.
+            # jq -R reads each "module:region" line as a raw string; split(":") yields
+            # the two fields; jq -s -c slurps all objects into a single compact array.
             json=$(printf '%s\n' "${pairs[@]}" | \
               jq -R 'split(":") | {"module": .[0], "region": .[1]}' | \
               jq -s -c .)
             echo "any_changed=true" >> "$GITHUB_OUTPUT"
             echo "deployments=$json" >> "$GITHUB_OUTPUT"
 
-            # Build a deduplicated list of module names for the test matrix.
-            # ${pair%%:*} is a parameter expansion that strips from the first ":"
-            # to the end of the string, leaving only the module name.
+            # Deduplicate module names for the test matrix.
+            # ${pair%%:*} strips from the first ":" to the end, leaving the module name.
             modules=()
             for pair in "${pairs[@]}"; do
               mod="${pair%%:*}"
@@ -183,8 +127,6 @@ jobs:
                 modules+=("$mod")
               fi
             done
-            # jq -R . wraps each input line as a quoted JSON string;
-            # jq -s -c . slurps all strings into a single compact JSON array.
             modules_json=$(printf '%s\n' "${modules[@]}" | jq -R . | jq -s -c .)
             echo "changed_modules=$modules_json" >> "$GITHUB_OUTPUT"
           fi
