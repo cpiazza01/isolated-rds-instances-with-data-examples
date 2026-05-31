@@ -106,20 +106,21 @@ variable "client_vpn_server_cert_arn" {
   type        = string
   description = "ACM certificate ARN for the VPN server. Required when client_vpn_create_certificates = false."
   default     = null
+
+  # Terraform 1.9+ allows cross-variable references in validations.
+  validation {
+    condition = (
+      var.client_vpn_create_certificates ||
+      (var.client_vpn_server_cert_arn != null && var.client_vpn_root_cert_arn != null)
+    )
+    error_message = "client_vpn_server_cert_arn and client_vpn_root_cert_arn are required when client_vpn_create_certificates = false. Import your server and CA certificates into ACM and set these values in prod/env.hcl."
+  }
 }
 
 variable "client_vpn_root_cert_arn" {
   type        = string
   description = "ACM CA certificate ARN for client authentication. Required when client_vpn_create_certificates = false."
   default     = null
-}
-
-validation {
-  condition = (
-    var.client_vpn_create_certificates ||
-    (var.client_vpn_server_cert_arn != null && var.client_vpn_root_cert_arn != null)
-  )
-  error_message = "client_vpn_server_cert_arn and client_vpn_root_cert_arn are required when client_vpn_create_certificates = false. Import your server and CA certificates into ACM and set these values in prod/env.hcl."
 }
 
 # One certificate/key pair is generated per entry when create_certificates = true.
