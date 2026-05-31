@@ -6,7 +6,7 @@ Two database engines are provided as separate Terragrunt-managed modules:
 
 | Module | Engine | Port |
 |--------|--------|------|
-| [module/postgres](module/postgres/) | PostgreSQL 16.3 | 5432 |
+| [module/postgres](module/postgres/) | PostgreSQL 16 (latest patch) | 5432 |
 | [module/mysql](module/mysql/) | MySQL 8.0 (latest patch) | 3306 |
 
 ## Architecture

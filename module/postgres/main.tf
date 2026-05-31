@@ -1,7 +1,7 @@
 # PostgreSQL root module — invoked by Terragrunt from environments/<env>/<region>/.
 # All inputs are provided via Terragrunt; do not run terraform directly here.
 
-# Provisions a private PostgreSQL 16.3 RDS instance inside its own VPC, seeded with
+# Provisions a private PostgreSQL 16 RDS instance inside its own VPC, seeded with
 # dummy data via a Lambda function, and optionally accessible through a bastion SSH tunnel.
 module "isolated_rds" {
   source = "github.com/cpiazza01/isolated-rds-instances-with-data?ref=main"
@@ -11,7 +11,7 @@ module "isolated_rds" {
   availability_zones = var.availability_zones
 
   db_engine         = "postgres"
-  db_engine_version = "16.3"
+  db_engine_version = "16"
   db_instance_class = var.db_instance_class
   db_name           = var.db_name
   db_username       = var.db_username

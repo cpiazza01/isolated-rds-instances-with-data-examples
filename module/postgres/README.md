@@ -1,6 +1,6 @@
 # module/postgres
 
-Deploys a private PostgreSQL 16.3 RDS instance inside its own VPC. A seeder Lambda populates the database with dummy data after apply. An optional bastion EC2 host provides SSH tunnel access to the private endpoint.
+Deploys a private PostgreSQL 16 RDS instance inside its own VPC. A seeder Lambda populates the database with dummy data after apply. An optional bastion EC2 host provides SSH tunnel access to the private endpoint.
 
 ## Prerequisites
 
