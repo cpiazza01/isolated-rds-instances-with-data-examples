@@ -1,6 +1,6 @@
 # module/mysql
 
-Deploys a private MySQL 8.0.35 RDS instance inside its own VPC. A seeder Lambda populates the database with dummy data after apply. An optional bastion EC2 host provides SSH tunnel access to the private endpoint.
+Deploys a private MySQL 8.0 RDS instance inside its own VPC. A seeder Lambda populates the database with dummy data after apply. An optional bastion EC2 host provides SSH tunnel access to the private endpoint.
 
 ## Prerequisites
 
