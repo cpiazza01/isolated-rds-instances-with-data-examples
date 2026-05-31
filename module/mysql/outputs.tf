@@ -54,7 +54,7 @@ output "bastion_instance_id" {
 
 output "bastion_connection_guide" {
   description = "Full step-by-step connection guide for reaching RDS via the bastion tunnel (null when enable_bastion = false)."
-  value = module.isolated_rds.bastion_connection_guide
+  value       = module.isolated_rds.bastion_connection_guide
 }
 
 output "db_password_command" {
