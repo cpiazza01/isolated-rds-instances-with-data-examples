@@ -1,0 +1,117 @@
+name: Deploy → prod
+
+# Manual prod deployment — only triggerable from the main branch.
+# Configure required reviewers on the "prod" GitHub Environment as the approval gate.
+#
+# Required GitHub Actions secrets:
+#   AWS_ROLE_ARN         — IAM role ARN to assume via OIDC
+#                          Set in the "prod" GitHub Environment (Settings → Environments)
+#                          (e.g. arn:aws:iam::123456789012:role/gha-terraform)
+#
+# No GitHub Actions variables required — state bucket names are in each module's region.hcl.
+
+on:
+  workflow_dispatch:
+    inputs:
+      module:
+        description: "Module to deploy"
+        required: true
+        type: choice
+        options:
+          - postgres
+          - mysql
+      region:
+        description: "AWS region to deploy into"
+        required: true
+        type: choice
+        options:
+          - us-east-1
+
+# One prod deploy per module/region at a time. cancel-in-progress: false so a
+# running apply is never killed mid-flight, which could corrupt state.
+concurrency:
+  group: deploy-prod-${{ inputs.module }}-${{ inputs.region }}
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # required to exchange the GitHub OIDC token for AWS credentials
+  contents: read
+
+env:
+  TERRAGRUNT_VERSION: "0.67.0"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Test — plan-only tests using mock providers. No AWS credentials required.
+  # Runs for the selected module before deployment proceeds.
+  # ---------------------------------------------------------------------------
+  test:
+    name: Test (${{ inputs.module }})
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+
+      - name: Terraform fmt check
+        working-directory: module/${{ inputs.module }}
+        run: terraform fmt -check -recursive
+
+      - name: Terraform init
+        working-directory: module/${{ inputs.module }}
+        run: terraform init
+
+      - name: Terraform validate
+        working-directory: module/${{ inputs.module }}
+        run: terraform validate
+
+      - name: Terraform test
+        working-directory: module/${{ inputs.module }}
+        run: terraform test
+
+  # ---------------------------------------------------------------------------
+  # Deploy → prod — manual dispatch from main branch only, after test passes.
+  # ---------------------------------------------------------------------------
+  deploy-prod:
+    name: Deploy → prod (${{ inputs.module }}/${{ inputs.region }})
+    needs: [test]
+    # Only runs when triggered from the main branch — prevents prod deploys from feature branches.
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: prod   # configure required reviewers here for an extra approval gate
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: Set up Terragrunt
+        run: |
+          # Download to /tmp so the binary and SHA256SUMS file share a directory —
+          # sha256sum --check resolves filenames relative to the current directory.
+          cd /tmp
+          curl -sL -o terragrunt_linux_amd64 \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
+          # Verify the binary matches the published checksum before placing it on PATH.
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
+            | grep "terragrunt_linux_amd64" | sha256sum --check
+          # install -m 0755 copies the file and sets the execute bit in one step.
+          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ inputs.region }}
+
+      - name: Terragrunt apply
+        working-directory: module/${{ inputs.module }}/environments/prod/${{ inputs.region }}
+        run: terragrunt apply -auto-approve --terragrunt-non-interactive

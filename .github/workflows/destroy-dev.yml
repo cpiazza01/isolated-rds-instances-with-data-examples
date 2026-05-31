@@ -1,0 +1,122 @@
+name: Scheduled Dev Destroy
+
+# Destroys all dev deployments nightly to avoid unnecessary AWS costs.
+# Runs at 4:00am UTC — adjust the cron expression if you need a different timezone
+# (e.g. 4:00am EST = "0 9 * * *", 4:00am PST = "0 12 * * *").
+#
+# Also triggerable manually via workflow_dispatch for on-demand teardown.
+#
+# Required GitHub Actions secrets:
+#   AWS_ROLE_ARN         — IAM role ARN to assume via OIDC
+#                          Set in the "dev" GitHub Environment (Settings → Environments)
+#                          (e.g. arn:aws:iam::123456789012:role/gha-terraform-dev)
+#
+# No GitHub Actions variables required — state bucket names are in each module's region.hcl.
+
+on:
+  schedule:
+    - cron: "0 4 * * *"   # 4:00am UTC daily
+  workflow_dispatch:         # allow manual trigger for on-demand teardown
+
+# Prevent a manual trigger from running alongside the scheduled nightly run.
+# cancel-in-progress: false so a running destroy isn't killed mid-flight.
+concurrency:
+  group: destroy-dev
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # required to exchange the GitHub OIDC token for AWS credentials
+  contents: read
+
+env:
+  TERRAGRUNT_VERSION: "0.67.0"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Discover dev deployments — finds every terragrunt.hcl under
+  # module/*/environments/dev/ so new modules are picked up automatically
+  # without updating this workflow.
+  # ---------------------------------------------------------------------------
+  discover:
+    name: Discover dev deployments
+    runs-on: ubuntu-latest
+    outputs:
+      deployments: ${{ steps.discover.outputs.deployments }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Find all dev deployment directories
+        id: discover
+        run: |
+          # Find every terragrunt.hcl that lives inside a dev environment directory.
+          # The glob "*/environments/dev/*/terragrunt.hcl" matches only leaf deployment
+          # directories (e.g. module/postgres/environments/dev/us-east-1/terragrunt.hcl).
+          # .terragrunt-cache/ directories are excluded because Terragrunt writes working
+          # copies of terragrunt.hcl there during execution and they must not be destroyed.
+          deployments=()
+          while IFS= read -r tg_file; do
+            dir=$(dirname "$tg_file")
+            # Extract module name (BASH_REMATCH[1]) and region (BASH_REMATCH[2])
+            # from the path using a regex capture group.
+            if [[ "$dir" =~ module/([^/]+)/environments/dev/([^/]+)$ ]]; then
+              deployments+=("{\"module\":\"${BASH_REMATCH[1]}\",\"region\":\"${BASH_REMATCH[2]}\"}")
+            fi
+          done < <(find . -path "*/environments/dev/*/terragrunt.hcl" -not -path "*/.terragrunt-cache/*" 2>/dev/null)
+
+          if [ ${#deployments[@]} -eq 0 ]; then
+            echo "deployments=[]" >> "$GITHUB_OUTPUT"
+          else
+            # Join the pre-formatted JSON object strings into a JSON array.
+            # Setting IFS=, makes "${deployments[*]}" expand with commas between
+            # elements instead of the default space separator.
+            json="[$(IFS=,; echo "${deployments[*]}")]"
+            echo "deployments=$json" >> "$GITHUB_OUTPUT"
+          fi
+
+  # ---------------------------------------------------------------------------
+  # Destroy — runs terragrunt destroy for each dev deployment in parallel.
+  # ---------------------------------------------------------------------------
+  destroy:
+    name: Destroy dev (${{ matrix.deployment.module }}/${{ matrix.deployment.region }})
+    needs: [discover]
+    if: needs.discover.outputs.deployments != '[]'
+    runs-on: ubuntu-latest
+    environment: dev
+    strategy:
+      matrix:
+        deployment: ${{ fromJson(needs.discover.outputs.deployments) }}
+      fail-fast: false   # destroy all modules even if one fails
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "~> 1.9"
+          terraform_wrapper: false
+
+      - name: Set up Terragrunt
+        run: |
+          # Download to /tmp so the binary and SHA256SUMS file share a directory —
+          # sha256sum --check resolves filenames relative to the current directory.
+          cd /tmp
+          curl -sL -o terragrunt_linux_amd64 \
+            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
+          # Verify the binary matches the published checksum before placing it on PATH.
+          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
+            | grep "terragrunt_linux_amd64" | sha256sum --check
+          # install -m 0755 copies the file and sets the execute bit in one step.
+          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ matrix.deployment.region }}
+
+      - name: Terragrunt destroy
+        working-directory: module/${{ matrix.deployment.module }}/environments/dev/${{ matrix.deployment.region }}
+        run: terragrunt destroy -auto-approve --terragrunt-non-interactive

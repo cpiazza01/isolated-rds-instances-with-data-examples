@@ -1,0 +1,29 @@
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+*.tfvars
+*.tfvars.json
+crash.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Terragrunt
+.terragrunt-cache/
+
+# Lambda invocation response written locally by the seeder module
+invoke_response.json
+
+# SSH private key files — users download these for bastion access
+*.pem
+
+# OS
+.DS_Store
+
+# Internal
+next-claude-prompts.md
+
+.env
