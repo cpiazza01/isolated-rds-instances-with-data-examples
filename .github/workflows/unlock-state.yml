@@ -50,6 +50,7 @@ permissions:
 
 env:
   TERRAGRUNT_VERSION: "0.67.0"
+  TF_IN_AUTOMATION: "true"
 
 jobs:
   # ---------------------------------------------------------------------------
