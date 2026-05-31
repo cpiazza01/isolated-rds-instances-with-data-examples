@@ -48,8 +48,6 @@ permissions:
 
 env:
   TERRAGRUNT_VERSION: "0.67.0"
-  TF_IN_AUTOMATION: "true"
-  TERRAGRUNT_LOG_LEVEL: "debug"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -170,9 +168,16 @@ jobs:
 
       - name: Terragrunt ${{ inputs.action }}
         working-directory: module/${{ matrix.deployment.module }}/environments/${{ needs.discover.outputs.target_env }}/${{ matrix.deployment.region }}
+        env:
+          TF_LOG: ERROR
+          TF_LOG_PATH: /tmp/tf.log
         run: |
           case "${{ inputs.action }}" in
-            plan)    terragrunt plan --terragrunt-non-interactive 2>&1 ;;
-            apply)   terragrunt apply   -auto-approve --terragrunt-non-interactive 2>&1 ;;
-            destroy) terragrunt destroy -auto-approve --terragrunt-non-interactive 2>&1 ;;
+            plan)    terragrunt plan --terragrunt-non-interactive ;;
+            apply)   terragrunt apply   -auto-approve --terragrunt-non-interactive ;;
+            destroy) terragrunt destroy -auto-approve --terragrunt-non-interactive ;;
           esac
+
+      - name: Show Terraform error log
+        if: failure()
+        run: cat /tmp/tf.log 2>/dev/null || echo "No Terraform log written"

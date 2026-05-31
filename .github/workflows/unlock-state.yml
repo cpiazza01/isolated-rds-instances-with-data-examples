@@ -50,8 +50,6 @@ permissions:
 
 env:
   TERRAGRUNT_VERSION: "0.67.0"
-  TF_IN_AUTOMATION: "true"
-  TERRAGRUNT_LOG_LEVEL: "debug"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -92,4 +90,4 @@ jobs:
 
       - name: Terragrunt force-unlock
         working-directory: module/${{ inputs.module }}/environments/${{ inputs.environment }}/${{ inputs.region }}
-        run: terragrunt force-unlock -force "${{ inputs.lock_id }}" --terragrunt-non-interactive 2>&1
+        run: terragrunt force-unlock -force "${{ inputs.lock_id }}" --terragrunt-non-interactive

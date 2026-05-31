@@ -33,8 +33,6 @@ permissions:
 
 env:
   TERRAGRUNT_VERSION: "0.67.0"
-  TF_IN_AUTOMATION: "true"
-  TERRAGRUNT_LOG_LEVEL: "debug"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -237,7 +235,7 @@ jobs:
 
       - name: Terragrunt plan
         working-directory: module/${{ matrix.deployment.module }}/environments/${{ needs.detect-changes.outputs.target_env }}/${{ matrix.deployment.region }}
-        run: terragrunt plan --terragrunt-non-interactive 2>&1
+        run: terragrunt plan --terragrunt-non-interactive
 
   # ---------------------------------------------------------------------------
   # Deploy → dev — push to any non-main branch, after tests pass.
@@ -288,7 +286,7 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ matrix.deployment.module }}/environments/dev/${{ matrix.deployment.region }}
-        run: terragrunt apply -auto-approve --terragrunt-non-interactive 2>&1
+        run: terragrunt apply -auto-approve --terragrunt-non-interactive
 
   # ---------------------------------------------------------------------------
   # Deploy → test — push to main only, after tests pass.
@@ -339,4 +337,4 @@ jobs:
 
       - name: Terragrunt apply
         working-directory: module/${{ matrix.deployment.module }}/environments/test/${{ matrix.deployment.region }}
-        run: terragrunt apply -auto-approve --terragrunt-non-interactive 2>&1
+        run: terragrunt apply -auto-approve --terragrunt-non-interactive

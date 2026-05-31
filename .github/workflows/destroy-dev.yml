@@ -30,8 +30,6 @@ permissions:
 
 env:
   TERRAGRUNT_VERSION: "0.67.0"
-  TF_IN_AUTOMATION: "true"
-  TERRAGRUNT_LOG_LEVEL: "debug"
 
 jobs:
   # ---------------------------------------------------------------------------
@@ -121,4 +119,4 @@ jobs:
 
       - name: Terragrunt destroy
         working-directory: module/${{ matrix.deployment.module }}/environments/dev/${{ matrix.deployment.region }}
-        run: terragrunt destroy -auto-approve --terragrunt-non-interactive 2>&1
+        run: terragrunt destroy -auto-approve --terragrunt-non-interactive
