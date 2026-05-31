@@ -61,7 +61,7 @@ The `tf_lock_table` local in each `region.hcl` points to the correct table for t
 
 ## CI/CD overview
 
-Four workflows:
+Five workflows:
 
 | Workflow | Trigger | What it does |
 |----------|---------|--------------|
@@ -69,6 +69,7 @@ Four workflows:
 | `deploy-prod.yml` | Manual dispatch | Test → deploy prod |
 | `deploy-lower.yml` | Manual dispatch | plan/apply/destroy dev or test (branch-derived) |
 | `destroy-dev.yml` | Nightly (4am UTC) + manual | Destroy all dev deployments |
+| `unlock-state.yml` | Manual dispatch | Release a stuck DynamoDB state lock |
 
 Key CI decisions made during development:
 - **PRs to main plan against `test`**, not `dev` — reviewers see exactly what merging will deploy.

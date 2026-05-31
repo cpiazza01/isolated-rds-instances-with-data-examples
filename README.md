@@ -47,7 +47,8 @@ The RDS instance is never publicly accessible. Connect locally via the SSH tunne
     ├── ci.yml                   # Test → plan → deploy dev/test on push/PR
     ├── deploy-prod.yml          # Manual prod deployment
     ├── deploy-lower.yml         # Manual plan/apply/destroy for any env
-    └── destroy-dev.yml          # Nightly dev teardown (4am UTC)
+    ├── destroy-dev.yml          # Nightly dev teardown (4am UTC)
+    └── unlock-state.yml         # Release a stuck DynamoDB state lock
 ```
 
 ## Prerequisites
@@ -92,6 +93,7 @@ After bootstrap, copy the role ARNs from its output and set them as GitHub Actio
 | Manual dispatch (`deploy-prod.yml`) | Test → deploy to `prod` (requires `prod` environment approval) |
 | Manual dispatch (`deploy-lower.yml`) | plan/apply/destroy for dev or test (branch-derived) |
 | Nightly schedule (`destroy-dev.yml`) | Destroy all `dev` deployments at 4am UTC |
+| Manual dispatch (`unlock-state.yml`) | Release a stuck DynamoDB state lock |
 
 Only modules with changed files are included in each run. New modules are picked up automatically by the destroy workflow without any workflow edits.
 
