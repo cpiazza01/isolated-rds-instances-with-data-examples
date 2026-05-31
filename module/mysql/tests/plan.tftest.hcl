@@ -1,9 +1,27 @@
 # Plan-only tests using mock providers — no AWS credentials required.
 # Validates that the module produces a valid plan for different environment configurations.
+#
+# override_module replaces the upstream isolated_rds module call with static mock
+# outputs. Without this, the upstream module's own provider "aws" {} block would
+# attempt to initialise a real provider even though mock_provider is set at the
+# root level — the two are separate provider configurations.
 
 mock_provider "aws" {}
 mock_provider "archive" {}
 mock_provider "tls" {}
+
+override_module {
+  target = module.isolated_rds
+  outputs = {
+    aws_region                 = "us-east-1"
+    db_endpoint                = "localhost:3306"
+    db_secret_arn              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+    seeder_lambda_name         = "test-seeder"
+    bastion_public_ip          = "0.0.0.0"
+    bastion_ssh_tunnel_command = "ssh -N -L 3306:localhost:3306 ec2-user@0.0.0.0 -i key.pem"
+    bastion_instance_id        = "i-00000000000000000"
+  }
+}
 
 # Baseline variable values shared across all runs.
 variables {
