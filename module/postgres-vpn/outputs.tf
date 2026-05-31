@@ -53,3 +53,8 @@ output "client_vpn_client_key_pem" {
   sensitive   = true
   value       = module.isolated_rds.client_vpn_client_key_pem
 }
+
+output "client_vpn_connection_guide" {
+  description = "Full step-by-step connection guide for reaching RDS via Client VPN (null when enable_client_vpn = false)."
+  value       = module.isolated_rds.client_vpn_connection_guide
+}

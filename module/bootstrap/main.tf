@@ -389,6 +389,19 @@ resource "aws_iam_role_policy" "github_actions_custom" {
           "acm:RemoveTagsFromCertificate"
         ]
         Resource = "*"
+      },
+      {
+        # Creating a Client VPN endpoint triggers AWS to create a service-linked
+        # role for clientvpn.amazonaws.com on first use in the account.
+        Sid      = "ClientVPNServiceLinkedRole"
+        Effect   = "Allow"
+        Action   = ["iam:CreateServiceLinkedRole"]
+        Resource = "arn:aws:iam::*:role/aws-service-role/clientvpn.amazonaws.com/AWSServiceRoleForClientVPN"
+        Condition = {
+          StringLike = {
+            "iam:AWSServiceName" = "clientvpn.amazonaws.com"
+          }
+        }
       }
     ]
   })

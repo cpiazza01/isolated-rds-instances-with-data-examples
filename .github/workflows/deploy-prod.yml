@@ -18,8 +18,9 @@ on:
         required: true
         type: choice
         options:
-          - postgres
           - mysql
+          - postgres
+          - postgres-vpn
       region:
         description: "AWS region to deploy into"
         required: true

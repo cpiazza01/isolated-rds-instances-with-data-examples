@@ -26,8 +26,9 @@ on:
         required: true
         type: choice
         options:
-          - postgres
           - mysql
+          - postgres
+          - postgres-vpn
       region:
         description: "AWS region — 'all' targets every region configured for the env"
         required: true
