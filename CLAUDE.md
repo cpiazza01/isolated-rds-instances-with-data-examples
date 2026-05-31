@@ -14,8 +14,9 @@ seeds it with dummy data via a Lambda function, and optionally exposes it throug
 ```
 module/
   bootstrap/    # One-time account setup — run manually, NOT via CI
-  postgres/     # PostgreSQL 16 deployments
-  mysql/        # MySQL 8.0 deployments
+  postgres/     # PostgreSQL 16 deployments (bastion SSH tunnel access)
+  postgres-vpn/ # PostgreSQL 16 deployments (AWS Client VPN access)
+  mysql/        # MySQL 8.0 deployments (bastion SSH tunnel access)
 ```
 
 ### bootstrap

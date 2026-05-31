@@ -4,10 +4,11 @@ Example deployments of the [`isolated-rds-instances-with-data`](https://github.c
 
 Two database engines are provided as separate Terragrunt-managed modules:
 
-| Module | Engine | Port |
-|--------|--------|------|
-| [module/postgres](module/postgres/) | PostgreSQL 16 (latest patch) | 5432 |
-| [module/mysql](module/mysql/) | MySQL 8.0 (latest patch) | 3306 |
+| Module | Engine | Port | Access |
+|--------|--------|------|--------|
+| [module/postgres](module/postgres/) | PostgreSQL 16 (latest patch) | 5432 | Bastion SSH tunnel |
+| [module/mysql](module/mysql/) | MySQL 8.0 (latest patch) | 3306 | Bastion SSH tunnel |
+| [module/postgres-vpn](module/postgres-vpn/) | PostgreSQL 16 (latest patch) | 5432 | AWS Client VPN |
 
 ## Architecture
 
@@ -41,8 +42,9 @@ The RDS instance is never publicly accessible. Connect locally via the SSH tunne
 ├── root.terragrunt.hcl          # Remote state + provider config, inherited by all modules
 ├── module/
 │   ├── bootstrap/               # One-time account setup (S3 buckets, IAM roles, OIDC)
-│   ├── postgres/                # PostgreSQL module + environments
-│   └── mysql/                   # MySQL module + environments
+│   ├── postgres/                # PostgreSQL module + environments (bastion access)
+│   ├── postgres-vpn/            # PostgreSQL module + environments (Client VPN access)
+│   └── mysql/                   # MySQL module + environments (bastion access)
 └── .github/workflows/
     ├── ci.yml                   # Test → plan → deploy dev/test on push/PR
     ├── deploy-prod.yml          # Manual prod deployment

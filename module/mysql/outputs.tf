@@ -51,3 +51,13 @@ output "bastion_instance_id" {
   description = "EC2 instance ID — use to start/stop the bastion: aws ec2 start-instances --instance-ids <id>"
   value       = module.isolated_rds.bastion_instance_id
 }
+
+output "bastion_connection_guide" {
+  description = "Full step-by-step connection guide for reaching RDS via the bastion tunnel (null when enable_bastion = false)."
+  value = module.isolated_rds.bastion_connection_guide
+}
+
+output "db_password_command" {
+  description = "Ready-to-run command to retrieve the RDS master password."
+  value       = module.isolated_rds.db_password_command
+}
