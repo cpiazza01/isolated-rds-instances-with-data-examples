@@ -372,6 +372,23 @@ resource "aws_iam_role_policy" "github_actions_custom" {
             "iam:PassedToService" = "lambda.amazonaws.com"
           }
         }
+      },
+      {
+        # ACM certificate management for Client VPN (postgres-vpn module).
+        # Required when client_vpn_create_certificates = true — the tls provider
+        # generates a CA and server/client certs and imports them into ACM.
+        Sid    = "ACMCertificateManagement"
+        Effect = "Allow"
+        Action = [
+          "acm:ImportCertificate",
+          "acm:DeleteCertificate",
+          "acm:DescribeCertificate",
+          "acm:ListCertificates",
+          "acm:ListTagsForCertificate",
+          "acm:AddTagsToCertificate",
+          "acm:RemoveTagsFromCertificate"
+        ]
+        Resource = "*"
       }
     ]
   })
