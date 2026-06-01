@@ -77,9 +77,10 @@ run "prod_config" {
     db_deletion_protection = true
 
     # Prod uses manual certificates — auto-generation stores keys in state.
-    client_vpn_create_certificates = false
-    client_vpn_server_cert_arn     = "arn:aws:acm:us-east-1:123456789012:certificate/server-cert"
-    client_vpn_root_cert_arn       = "arn:aws:acm:us-east-1:123456789012:certificate/ca-cert"
+    client_vpn_create_certificates       = false
+    client_vpn_server_cert_arn           = "arn:aws:acm:us-east-1:123456789012:certificate/server-cert"
+    client_vpn_root_cert_arn             = "arn:aws:acm:us-east-1:123456789012:certificate/ca-cert"
+    client_vpn_enable_connection_logging = true
   }
 
   assert {
