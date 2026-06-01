@@ -4,7 +4,7 @@
 # Provisions a private MySQL 8.0 RDS instance inside its own VPC, seeded with
 # dummy data via a Lambda function, and optionally accessible through a bastion SSH tunnel.
 module "isolated_rds" {
-  source = "github.com/cpiazza01/isolated-rds-instances-with-data?ref=main"
+  source = "github.com/cpiazza01/isolated-rds-instances-with-data?ref=v0.1.1"
 
   aws_region         = var.aws_region
   name_prefix        = var.name_prefix

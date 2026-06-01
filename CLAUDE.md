@@ -35,9 +35,8 @@ module/
 
 ## Upstream module ref
 
-Both `postgres/main.tf` and `mysql/main.tf` currently use `?ref=main` for the upstream module source.
-This is **intentionally unpinned** — the user is still testing. Once the upstream module is stable,
-the plan is to create a version tag and pin to it here. Do not suggest pinning unless asked.
+All three modules (`postgres/main.tf`, `postgres-vpn/main.tf`, `mysql/main.tf`) pin to `?ref=v0.1.1`.
+When a new version tag is released upstream, update all three `source` lines together.
 
 ## Terragrunt hierarchy
 
