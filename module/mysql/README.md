@@ -19,7 +19,7 @@ Configuration is split across three HCL files that Terragrunt merges at deploy t
 | `db_username` | `dbadmin` | Master username |
 | `db_storage_gb` | `20` | Allocated storage in GiB (cannot shrink after creation) |
 | `enable_bastion` | `true` | Deploy a bastion EC2 for SSH tunnel access |
-| `bastion_ssh_key_name` | `rds-testing-key` | Name of an existing EC2 key pair in the target region |
+| `bastion_ssh_key_name` | `my-rds-key` | Name of an existing EC2 key pair in the target region |
 
 Update `bastion_ssh_key_name` to match a key pair you have the private key for.
 
