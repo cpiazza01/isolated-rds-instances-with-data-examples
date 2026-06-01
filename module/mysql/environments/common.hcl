@@ -10,9 +10,9 @@ locals {
   enable_bastion = true
 
   # EC2 key pair name used to SSH to the bastion host.
-  # Create one: aws ec2 create-key-pair --key-name my-rds-testing-key --region us-east-1 \
-  #   --query KeyMaterial --output text > ~/.ssh/my-rds-testing-key.pem && chmod 400 ~/.ssh/my-rds-testing-key.pem
-  bastion_ssh_key_name = "my-rds-testing-key"
+  # Create one: aws ec2 create-key-pair --key-name rds-testing-key --region us-east-1 \
+  #   --query KeyMaterial --output text > ~/.ssh/rds-testing-key.pem && chmod 400 ~/.ssh/rds-testing-key.pem
+  bastion_ssh_key_name = "rds-testing-key"
 
   # ARN of the permission boundary created by bootstrap. Required so the
   # GitHub Actions IAMCreateRoleWithBoundary condition allows seeder Lambda
