@@ -101,8 +101,20 @@ Only modules with changed files are included in each run. New modules are picked
 
 ## Environments
 
+### module/postgres and module/mysql (bastion SSH tunnel access)
+
 | Environment | Instance | Rows seeded | Bastion CIDRs | Deletion protection |
 |-------------|----------|-------------|---------------|---------------------|
 | dev | db.t3.micro | 1,000 | `0.0.0.0/0` | off |
 | test | db.t3.micro | 5,000 | `0.0.0.0/0` | off |
 | prod | db.t3.small | 10,000 | configurable | on |
+
+### module/postgres-vpn (AWS Client VPN access)
+
+| Environment | Instance | Rows seeded | VPN certificates | Connection logging | Deletion protection |
+|-------------|----------|-------------|------------------|--------------------|---------------------|
+| dev | db.t3.micro | 1,000 | auto-generated | off | off |
+| test | db.t3.micro | 5,000 | auto-generated | off | off |
+| prod | db.t3.small | 10,000 | manually managed | on | on |
+
+> **Cost note:** AWS Client VPN charges ~$0.10/hr per subnet association. With two AZs this is ~$144/month even when idle. Dev deployments are destroyed nightly by the scheduled workflow; use `deploy-lower.yml` destroy to tear down test when not needed.

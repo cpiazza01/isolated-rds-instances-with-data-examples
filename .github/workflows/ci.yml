@@ -22,10 +22,13 @@ on:
     branches:
       - main
 
-# Cancel any in-progress run for the same branch when a new push arrives.
+# Do not cancel in-progress runs — a running apply or destroy must complete
+# before a new one can safely start. Cancelling mid-apply kills the Terraform
+# process and leaves a stuck DynamoDB state lock (requiring unlock-state.yml).
+# Stale test/plan runs are harmless overhead compared to corrupted state.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   id-token: write   # required to exchange the GitHub OIDC token for AWS credentials
@@ -79,7 +82,13 @@ jobs:
           elif [ "${{ github.event.before }}" != "0000000000000000000000000000000000000000" ]; then
             changed=$(git diff --name-only "${{ github.event.before }}..HEAD")
           else
-            changed=$(git diff-tree --no-commit-id -r --name-only HEAD)
+            # New branch — no "before" SHA to diff against. Diff against the
+            # default branch so all commits in the push are captured, not just HEAD.
+            # Falls back to listing all tracked files if the default branch does not
+            # exist yet (brand-new repository with no main branch).
+            changed=$(git diff --name-only \
+              "origin/${{ github.event.repository.default_branch }}"..HEAD \
+              2>/dev/null || git ls-files)
           fi
 
           # Target env: test on push to main OR PR to main (so plan previews what
@@ -215,17 +224,9 @@ jobs:
           terraform_wrapper: false   # Terragrunt calls terraform directly; wrapper interferes
 
       - name: Set up Terragrunt
-        run: |
-          # Download to /tmp so the binary and SHA256SUMS file share a directory —
-          # sha256sum --check resolves filenames relative to the current directory.
-          cd /tmp
-          curl -sL -o terragrunt_linux_amd64 \
-            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
-          # Verify the binary matches the published checksum before placing it on PATH.
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
-            | grep "terragrunt_linux_amd64" | sha256sum --check
-          # install -m 0755 copies the file and sets the execute bit in one step.
-          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+        uses: ./.github/actions/setup-terragrunt
+        with:
+          version: ${{ env.TERRAGRUNT_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -263,6 +264,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Python is required during apply by the upstream module — not needed for plan or test.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -273,17 +275,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Set up Terragrunt
-        run: |
-          # Download to /tmp so the binary and SHA256SUMS file share a directory —
-          # sha256sum --check resolves filenames relative to the current directory.
-          cd /tmp
-          curl -sL -o terragrunt_linux_amd64 \
-            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
-          # Verify the binary matches the published checksum before placing it on PATH.
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
-            | grep "terragrunt_linux_amd64" | sha256sum --check
-          # install -m 0755 copies the file and sets the execute bit in one step.
-          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+        uses: ./.github/actions/setup-terragrunt
+        with:
+          version: ${{ env.TERRAGRUNT_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -321,6 +315,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Python is required during apply by the upstream module — not needed for plan or test.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -331,17 +326,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Set up Terragrunt
-        run: |
-          # Download to /tmp so the binary and SHA256SUMS file share a directory —
-          # sha256sum --check resolves filenames relative to the current directory.
-          cd /tmp
-          curl -sL -o terragrunt_linux_amd64 \
-            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
-          # Verify the binary matches the published checksum before placing it on PATH.
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
-            | grep "terragrunt_linux_amd64" | sha256sum --check
-          # install -m 0755 copies the file and sets the execute bit in one step.
-          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+        uses: ./.github/actions/setup-terragrunt
+        with:
+          version: ${{ env.TERRAGRUNT_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

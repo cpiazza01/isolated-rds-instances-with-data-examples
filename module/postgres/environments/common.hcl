@@ -2,6 +2,8 @@
 # Every key must correspond to a declared variable in variables.tf.
 
 locals {
+  vpc_cidr = "10.101.0.0/16"
+
   db_name        = "appdb"
   db_username    = "dbadmin"
   db_storage_gb  = 20
@@ -14,7 +16,9 @@ locals {
 
   # ARN of the permission boundary created by bootstrap. Required so the
   # GitHub Actions IAMCreateRoleWithBoundary condition allows seeder Lambda
-  # role creation. Get the value from: terraform output lambda_boundary_arn
+  # role creation. The account ID (321923606518) is specific to this deployment —
+  # replace with your own after running bootstrap:
+  #   terraform output lambda_boundary_arn
   # (run in module/bootstrap/environments/account/global/).
   lambda_permission_boundary_arn = "arn:aws:iam::321923606518:policy/isolated-rds-examples-lambda-boundary"
 }

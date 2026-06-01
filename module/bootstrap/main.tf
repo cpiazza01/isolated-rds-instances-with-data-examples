@@ -197,8 +197,8 @@ resource "aws_dynamodb_table" "state_lock" {
 #   prod → GitHub "prod" environment only (pairs with required reviewers gate)
 #
 # After apply, copy the role ARNs from outputs and set them as AWS_ROLE_ARN in:
-#   - repo-level secrets (used by plan job on PRs) → use dev role ARN
-#   - each GitHub Environment secret (Settings → Environments → dev / test / prod)
+#   - repo-level variable (used by plan job on PRs) → use dev role ARN
+#   - each GitHub Environment variable (Settings → Environments → dev / test / prod)
 
 locals {
   roles = {
@@ -238,6 +238,15 @@ locals {
       role_key   = pair[0]
       policy_arn = pair[1]
     }
+  }
+
+  # S3 state buckets each role is allowed to READ. The dev role additionally reads
+  # the test bucket because the plan job on PRs to main uses the repo-level (dev)
+  # role ARN to plan against test state — cross-env read is needed, cross-env write is not.
+  role_state_read_envs = {
+    dev  = ["dev", "test"]
+    test = ["test"]
+    prod = ["prod"]
   }
 }
 
@@ -288,24 +297,45 @@ resource "aws_iam_role_policy" "github_actions_custom" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "TerraformStateAccess"
+        # Read access scoped to this role's allowed environments (see local.role_state_read_envs).
+        # The dev role reads dev + test buckets; test and prod roles read only their own bucket.
+        # flatten() expands the for-comprehension into a flat list of ARN strings, e.g. for dev:
+        #   ["arn:aws:s3:::cpiazza01-tf-state-dev-*", "arn:aws:s3:::cpiazza01-tf-state-dev-*/*",
+        #    "arn:aws:s3:::cpiazza01-tf-state-test-*", "arn:aws:s3:::cpiazza01-tf-state-test-*/*"]
+        Sid    = "TerraformStateRead"
         Effect = "Allow"
         Action = [
           "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
           "s3:ListBucket",
           "s3:GetBucketVersioning",
           "s3:GetEncryptionConfiguration",
           "s3:GetBucketPublicAccessBlock"
         ]
+        Resource = flatten([
+          for env in local.role_state_read_envs[each.key] : [
+            "arn:aws:s3:::${var.state_bucket_prefix}-${env}-*",
+            "arn:aws:s3:::${var.state_bucket_prefix}-${env}-*/*"
+          ]
+        ])
+      },
+      {
+        # Write access scoped to this role's own environment bucket only.
+        # each.key is "dev", "test", or "prod", matching the bucket name suffix.
+        Sid    = "TerraformStateWrite"
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:DeleteObject"
+        ]
         Resource = [
-          "arn:aws:s3:::${var.state_bucket_prefix}-*",
-          "arn:aws:s3:::${var.state_bucket_prefix}-*/*"
+          "arn:aws:s3:::${var.state_bucket_prefix}-${each.key}-*",
+          "arn:aws:s3:::${var.state_bucket_prefix}-${each.key}-*/*"
         ]
       },
       {
-        # Acquire and release state locks. Scoped to lock tables created by this module.
+        # Lock table access uses the same per-role scoping as TerraformStateRead:
+        # dev locks dev + test tables (plan jobs lock test state on PRs);
+        # test and prod lock only their own env's table.
         Sid    = "TerraformStateLock"
         Effect = "Allow"
         Action = [
@@ -314,14 +344,20 @@ resource "aws_iam_role_policy" "github_actions_custom" {
           "dynamodb:PutItem",
           "dynamodb:DeleteItem"
         ]
-        Resource = "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/${var.state_bucket_prefix}-lock-*"
+        Resource = flatten([
+          for env in local.role_state_read_envs[each.key] : [
+            "arn:aws:dynamodb:*:${data.aws_caller_identity.current.account_id}:table/${var.state_bucket_prefix}-lock-${env}-*"
+          ]
+        ])
       },
       {
         # Creating roles requires the permission boundary — blocks privilege escalation.
+        # Resource is scoped to this account's role namespace; the boundary condition
+        # is the primary security control (any role created must carry the boundary).
         Sid      = "IAMCreateRoleWithBoundary"
         Effect   = "Allow"
         Action   = ["iam:CreateRole"]
-        Resource = "*"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*"
         Condition = {
           StringEquals = {
             "iam:PermissionsBoundary" = aws_iam_policy.lambda_boundary.arn
@@ -331,6 +367,7 @@ resource "aws_iam_role_policy" "github_actions_custom" {
       {
         # All other IAM role/policy CRUD needed to manage the Lambda execution
         # role lifecycle — update, delete, read, attach/detach policies.
+        # Scoped to this account's role and policy namespaces.
         Sid    = "IAMRoleManagement"
         Effect = "Allow"
         Action = [
@@ -358,15 +395,18 @@ resource "aws_iam_role_policy" "github_actions_custom" {
           "iam:ListRolePolicies",
           "iam:ListInstanceProfilesForRole"
         ]
-        Resource = "*"
+        Resource = [
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*",
+          "arn:aws:iam::${data.aws_caller_identity.current.account_id}:policy/*"
+        ]
       },
       {
         # PassRole scoped to Lambda — prevents passing the execution role to
-        # any other service.
+        # any other service. Resource scoped to this account's role namespace.
         Sid      = "PassRoleToLambda"
         Effect   = "Allow"
         Action   = ["iam:PassRole"]
-        Resource = "*"
+        Resource = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/*"
         Condition = {
           StringEquals = {
             "iam:PassedToService" = "lambda.amazonaws.com"

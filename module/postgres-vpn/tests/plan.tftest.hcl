@@ -13,15 +13,17 @@ mock_provider "tls" {}
 override_module {
   target = module.isolated_rds
   outputs = {
-    aws_region                 = "us-east-1"
-    db_endpoint                = "localhost:5432"
-    db_secret_arn              = "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
-    seeder_lambda_name         = "test-seeder"
-    client_vpn_endpoint_id     = "cvpn-endpoint-0123456789abcdef0"
-    client_vpn_dns_name        = "cvpn-endpoint-0123456789abcdef0.prod.clientvpn.us-east-1.amazonaws.com"
-    client_vpn_config_cmd      = "aws ec2 export-client-vpn-client-configuration --client-vpn-endpoint-id cvpn-endpoint-0123456789abcdef0 --region us-east-1 --output text > client-config.ovpn"
-    client_vpn_client_cert_pem = {}
-    client_vpn_client_key_pem  = {}
+    aws_region                  = "us-east-1"
+    db_endpoint                 = "localhost:5432"
+    db_secret_arn               = "arn:aws:secretsmanager:us-east-1:123456789012:secret:test"
+    db_password_command         = "aws secretsmanager get-secret-value --secret-id arn:aws:secretsmanager:us-east-1:123456789012:secret:test --query SecretString --output text | python -m json.tool"
+    seeder_lambda_name          = "test-seeder"
+    client_vpn_endpoint_id      = "cvpn-endpoint-0123456789abcdef0"
+    client_vpn_dns_name         = "cvpn-endpoint-0123456789abcdef0.prod.clientvpn.us-east-1.amazonaws.com"
+    client_vpn_config_cmd       = "aws ec2 export-client-vpn-client-configuration --client-vpn-endpoint-id cvpn-endpoint-0123456789abcdef0 --region us-east-1 --output text > client-config.ovpn"
+    client_vpn_client_cert_pem  = {}
+    client_vpn_client_key_pem   = {}
+    client_vpn_connection_guide = "1. Download the .ovpn config.\n2. Import into AWS VPN Client and connect.\n3. Connect with psql on the RDS private endpoint."
   }
 }
 
@@ -29,6 +31,7 @@ override_module {
 variables {
   aws_region         = "us-east-1"
   name_prefix        = "test-pg-vpn"
+  vpc_cidr           = "10.0.0.0/16"
   availability_zones = ["us-east-1a", "us-east-1b"]
 
   db_instance_class = "db.t3.micro"
@@ -56,6 +59,11 @@ run "dev_config" {
   assert {
     condition     = var.skip_final_snapshot == true
     error_message = "dev should skip the final snapshot"
+  }
+
+  assert {
+    condition     = var.client_vpn_create_certificates == true
+    error_message = "dev should auto-generate VPN certificates (private keys in state is acceptable for dev)"
   }
 }
 
@@ -87,6 +95,11 @@ run "prod_config" {
   assert {
     condition     = var.client_vpn_create_certificates == false
     error_message = "prod should use manually managed certificates"
+  }
+
+  assert {
+    condition     = var.client_vpn_enable_connection_logging == true
+    error_message = "prod must enable VPN connection logging for the audit trail"
   }
 }
 

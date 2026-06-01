@@ -76,21 +76,22 @@ jobs:
           echo "target_env=${target_env}" >> "$GITHUB_OUTPUT"
 
           if [ "${{ inputs.region }}" = "all" ]; then
-            deployments=()
+            pairs=()
             while IFS= read -r region_dir; do
-              region=$(basename "$region_dir")
-              deployments+=("{\"module\":\"${{ inputs.module }}\",\"region\":\"$region\"}")
+              pairs+=("${{ inputs.module }}:$(basename "$region_dir")")
             done < <(find "module/${{ inputs.module }}/environments/${target_env}" \
                        -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort)
           else
-            deployments=("{\"module\":\"${{ inputs.module }}\",\"region\":\"${{ inputs.region }}\"}")
+            pairs=("${{ inputs.module }}:${{ inputs.region }}")
           fi
 
-          if [ ${#deployments[@]} -eq 0 ]; then
+          if [ ${#pairs[@]} -eq 0 ]; then
             echo "No deployment directories found for ${{ inputs.module }}/${target_env}" >&2
             exit 1
           fi
-          json="[$(IFS=,; echo "${deployments[*]}")]"
+          json=$(printf '%s\n' "${pairs[@]}" | \
+            jq -R 'split(":") | {"module": .[0], "region": .[1]}' | \
+            jq -s -c .)
           echo "deployments=$json" >> "$GITHUB_OUTPUT"
 
   # ---------------------------------------------------------------------------
@@ -139,6 +140,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Python is required during apply/destroy by the upstream module — not needed for plan or test.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -149,17 +151,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Set up Terragrunt
-        run: |
-          # Download to /tmp so the binary and SHA256SUMS file share a directory —
-          # sha256sum --check resolves filenames relative to the current directory.
-          cd /tmp
-          curl -sL -o terragrunt_linux_amd64 \
-            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
-          # Verify the binary matches the published checksum before placing it on PATH.
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
-            | grep "terragrunt_linux_amd64" | sha256sum --check
-          # install -m 0755 copies the file and sets the execute bit in one step.
-          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+        uses: ./.github/actions/setup-terragrunt
+        with:
+          version: ${{ env.TERRAGRUNT_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

@@ -27,5 +27,5 @@ locals {
   client_vpn_create_certificates       = false
   client_vpn_server_cert_arn           = null   # replace with ACM server cert ARN
   client_vpn_root_cert_arn             = null   # replace with ACM CA cert ARN
-  client_vpn_enable_connection_logging = true
+  client_vpn_enable_connection_logging = true   # disabled in dev/test; enable in prod for an audit trail
 }

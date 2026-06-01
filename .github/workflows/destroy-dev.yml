@@ -53,23 +53,22 @@ jobs:
           # directories (e.g. module/postgres/environments/dev/us-east-1/terragrunt.hcl).
           # .terragrunt-cache/ directories are excluded because Terragrunt writes working
           # copies of terragrunt.hcl there during execution and they must not be destroyed.
-          deployments=()
+          pairs=()
           while IFS= read -r tg_file; do
             dir=$(dirname "$tg_file")
             # Extract module name (BASH_REMATCH[1]) and region (BASH_REMATCH[2])
             # from the path using a regex capture group.
             if [[ "$dir" =~ module/([^/]+)/environments/dev/([^/]+)$ ]]; then
-              deployments+=("{\"module\":\"${BASH_REMATCH[1]}\",\"region\":\"${BASH_REMATCH[2]}\"}")
+              pairs+=("${BASH_REMATCH[1]}:${BASH_REMATCH[2]}")
             fi
           done < <(find . -path "*/environments/dev/*/terragrunt.hcl" -not -path "*/.terragrunt-cache/*" 2>/dev/null)
 
-          if [ ${#deployments[@]} -eq 0 ]; then
+          if [ ${#pairs[@]} -eq 0 ]; then
             echo "deployments=[]" >> "$GITHUB_OUTPUT"
           else
-            # Join the pre-formatted JSON object strings into a JSON array.
-            # Setting IFS=, makes "${deployments[*]}" expand with commas between
-            # elements instead of the default space separator.
-            json="[$(IFS=,; echo "${deployments[*]}")]"
+            json=$(printf '%s\n' "${pairs[@]}" | \
+              jq -R 'split(":") | {"module": .[0], "region": .[1]}' | \
+              jq -s -c .)
             echo "deployments=$json" >> "$GITHUB_OUTPUT"
           fi
 
@@ -89,6 +88,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Python is required during destroy by the upstream module — not needed for plan or test.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -99,17 +99,9 @@ jobs:
           terraform_wrapper: false
 
       - name: Set up Terragrunt
-        run: |
-          # Download to /tmp so the binary and SHA256SUMS file share a directory —
-          # sha256sum --check resolves filenames relative to the current directory.
-          cd /tmp
-          curl -sL -o terragrunt_linux_amd64 \
-            "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64"
-          # Verify the binary matches the published checksum before placing it on PATH.
-          curl -sL "https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/SHA256SUMS" \
-            | grep "terragrunt_linux_amd64" | sha256sum --check
-          # install -m 0755 copies the file and sets the execute bit in one step.
-          install -m 0755 terragrunt_linux_amd64 /usr/local/bin/terragrunt
+        uses: ./.github/actions/setup-terragrunt
+        with:
+          version: ${{ env.TERRAGRUNT_VERSION }}
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4

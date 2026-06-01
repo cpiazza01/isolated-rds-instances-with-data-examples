@@ -20,6 +20,8 @@ override_module {
     bastion_public_ip          = "0.0.0.0"
     bastion_ssh_tunnel_command = "ssh -N -L 5432:localhost:5432 ec2-user@0.0.0.0 -i key.pem"
     bastion_instance_id        = "i-00000000000000000"
+    bastion_connection_guide   = "1. Run the SSH tunnel command.\n2. Connect with psql on localhost:5432."
+    db_password_command        = "aws secretsmanager get-secret-value --secret-id arn:aws:secretsmanager:us-east-1:123456789012:secret:test --query SecretString --output text | python -m json.tool"
   }
 }
 
@@ -27,6 +29,7 @@ override_module {
 variables {
   aws_region         = "us-east-1"
   name_prefix        = "test-pg"
+  vpc_cidr           = "10.0.0.0/16"
   availability_zones = ["us-east-1a", "us-east-1b"]
 
   db_instance_class = "db.t3.micro"

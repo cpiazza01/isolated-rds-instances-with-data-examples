@@ -13,6 +13,11 @@ variable "name_prefix" {
   description = "Prefix applied to all resource names and tags"
 }
 
+variable "vpc_cidr" {
+  type        = string
+  description = "CIDR block for the VPC"
+}
+
 # Two AZs are required by RDS for the DB subnet group, even when multi_az = false.
 variable "availability_zones" {
   type        = list(string)

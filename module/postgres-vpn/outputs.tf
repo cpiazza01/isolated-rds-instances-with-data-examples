@@ -15,6 +15,11 @@ output "db_secret_arn" {
   value       = module.isolated_rds.db_secret_arn
 }
 
+output "db_password_command" {
+  description = "Ready-to-run command to retrieve the RDS master password."
+  value       = module.isolated_rds.db_password_command
+}
+
 output "seeder_lambda_name" {
   description = "Re-seed the database at any time: aws lambda invoke --function-name <name> --region <region> response.json"
   value       = module.isolated_rds.seeder_lambda_name

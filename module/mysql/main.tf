@@ -8,6 +8,7 @@ module "isolated_rds" {
 
   aws_region         = var.aws_region
   name_prefix        = var.name_prefix
+  vpc_cidr           = var.vpc_cidr
   availability_zones = var.availability_zones
 
   db_engine         = "mysql"

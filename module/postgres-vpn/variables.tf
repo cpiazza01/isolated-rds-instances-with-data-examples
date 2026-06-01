@@ -10,6 +10,11 @@ variable "name_prefix" {
   description = "Prefix applied to all resource names and tags"
 }
 
+variable "vpc_cidr" {
+  type        = string
+  description = "CIDR block for the VPC"
+}
+
 variable "availability_zones" {
   type        = list(string)
   description = "AZs for private subnets — must contain at least two"
@@ -85,7 +90,7 @@ variable "db_deletion_protection" {
 # when no clients are connected. Use destroy-dev.yml nightly teardown or
 # deploy-lower.yml destroy to avoid idle charges in dev/test.
 
-# Must not overlap with the VPC CIDR (10.0.0.0/16 by default).
+# Must not overlap with the VPC CIDR (set to 10.102.0.0/16 in common.hcl).
 variable "client_vpn_cidr" {
   type        = string
   description = "CIDR block for VPN client IPs — must not overlap with the VPC CIDR"

@@ -64,6 +64,8 @@ terragrunt apply
 | `bastion_public_ip` | Public IP of the bastion host |
 | `bastion_ssh_tunnel_command` | Ready-to-run SSH command that forwards `localhost:5432` to the RDS endpoint |
 | `bastion_instance_id` | EC2 instance ID for starting/stopping the bastion |
+| `bastion_connection_guide` | Full step-by-step connection guide (null when `enable_bastion = false`) |
+| `db_password_command` | Ready-to-run command to retrieve the master password |
 
 ## Connecting to the database
 

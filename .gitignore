@@ -27,3 +27,5 @@ invoke_response.json
 next-claude-prompts.md
 
 .env
+
+client-config.ovpn
